@@ -17,7 +17,7 @@ local pen = wx.wxBLACK_PEN
 local mdc = wx.wxMemoryDC()
 local w, h
 
-local function log(...) --[[print(...)]] end
+local function log(...) SU.debug("wxlua-output", table.concat({...}, "\t")) end
 
 local function OnPaint()
   -- must always create a wxPaintDC in a wxEVT_PAINT handler
