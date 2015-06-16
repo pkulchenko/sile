@@ -1,4 +1,3 @@
--- add pages (using pageup/down)
 -- add zooming (using +/-)
 --  how to zoom without redrawing everything? need to keep a log of calls for a page
 
@@ -6,15 +5,19 @@ if (not SILE.outputters) then SILE.outputters = {} end
 local f
 local cx
 local cy
-
-local frame, font, fontadj, bitmap
+local frame, font, fontadj, bitmap, title
+local pages = {}
+local page = 1
 
 require 'wx'
 local osname = wx.wxPlatformInfo.Get():GetOperatingSystemFamilyName()
 local linux = osname == 'Unix'
 local colors = {wx.wxBLACK}
-local mdc = wx.wxMemoryDC()
 local pen = wx.wxBLACK_PEN
+local mdc = wx.wxMemoryDC()
+local w, h
+
+local function log(...) end
 
 local function OnPaint()
   -- must always create a wxPaintDC in a wxEVT_PAINT handler
@@ -25,56 +28,80 @@ end
 
 local function l2d(v) return v*16/12 end
 
-SILE.outputters.debug = {
-  init = function()
-    print("Open file", SILE.outputFilename)
-    print("Set paper size ", SILE.documentState.paperSize[1],SILE.documentState.paperSize[2])
-    print("Begin page")
+local function newpage()
+  bitmap = wx.wxBitmap(w,h)
+  mdc:SelectObject(bitmap)
+  mdc:Clear()
+  mdc:SelectObject(wx.wxNullBitmap)
 
-    local w = math.floor(0.5+l2d(SILE.documentState.paperSize[1]))
-    local h = math.floor(0.5+l2d(SILE.documentState.paperSize[2]))
-    bitmap = wx.wxBitmap(w,h)
+  table.insert(pages, {bitmap = bitmap})
+end
+
+local function setpage(p)
+  page = p
+  bitmap = pages[page].bitmap
+  frame:SetTitle(title:format(page, #pages))
+  frame:Refresh()
+end
+
+SILE.outputters.wxlua = {
+  init = function()
+    w = math.floor(0.5+l2d(SILE.documentState.paperSize[1]))
+    h = math.floor(0.5+l2d(SILE.documentState.paperSize[2]))
+    title = SILE.outputFilename.." (%d/%d)"
+
+    log("Open file", SILE.outputFilename)
+    log("Set paper size ", w, h)
+    log("Init page")
+    newpage()
+  end,
+  newPage = function()
+    log("New page")
+    newpage()
+  end,
+  finish = function()
+    log("End page")
+    log("Finish")
+
     frame = wx.wxFrame(
       wx.NULL, -- no parent for toplevel windows
       wx.wxID_ANY, -- don't need a wxWindow ID
-      SILE.outputFilename,
+      "",
       wx.wxDefaultPosition,
       wx.wxDefaultSize,
       wx.wxDEFAULT_FRAME_STYLE + wx.wxSTAY_ON_TOP - wx.wxRESIZE_BORDER - wx.wxMAXIMIZE_BOX)
     frame:SetClientSize(w, h)
     frame:Connect(wx.wxEVT_PAINT, OnPaint)
     frame:Connect(wx.wxEVT_ERASE_BACKGROUND, function () end) -- do nothing
-
-    mdc:SelectObject(bitmap)
-    mdc:Clear()
-    mdc:SelectObject(wx.wxNullBitmap)
-  end,
-  newPage = function()
-    print("New page")
-  end,
-  finish = function()
-    print("End page")
-    print("Finish")
-
     frame:Show()
-    frame:Refresh()
-    frame:Update()
+    frame:Connect(wx.wxEVT_KEY_DOWN,
+      function (event)
+        local keycode = event:GetKeyCode()
+        local mod = event:GetModifiers()
+        if keycode == wx.WXK_PAGEDOWN and page < #pages then
+          setpage(page + 1)
+        elseif keycode == wx.WXK_PAGEUP and page > 1 then
+          setpage(page - 1)
+        end
+      end)
+
+    setpage(1)
     wx.wxGetApp():MainLoop()
   end,
   setColor = function(self, color)
-    print("Set color", color.r, color.g, color.b)
+    log("Set color", color.r, color.g, color.b)
     colors[#colors] = wx.wxColour(color.r*255, color.g*255, color.b*255)
     pen:SetColour(colors[#colors])
     mdc:SetTextForeground(colors[#colors])
   end,
   pushColor = function (self, color)
-    print("Push color", color.r, color.g, color.b)
+    log("Push color", color.r, color.g, color.b)
     table.insert(colors, wx.wxColour(color.r*255, color.g*255, color.b*255))
     pen:SetColour(colors[#colors])
     mdc:SetTextForeground(colors[#colors])
   end,
   popColor = function (self)
-    print("Pop color")
+    log("Pop color")
     table.remove(colors)
     pen:SetColour(colors[#colors])
     mdc:SetTextForeground(colors[#colors])
@@ -85,7 +112,7 @@ SILE.outputters.debug = {
       buf[#buf+1] = value.glyphString[i]
     end
     buf = table.concat(buf, " ")
-    print("T", buf, "("..value.text..")")
+    log("T", buf, "("..value.text..")")
 
     mdc:SelectObject(bitmap)
     mdc:SetFont(font)
@@ -95,17 +122,17 @@ SILE.outputters.debug = {
   end,
   setFont = function (options)
     if f ~= SILE.font._key(options) then
-      print("Set font ", SILE.font._key(options))
+      log("Set font ", SILE.font._key(options))
       f = SILE.font._key(options)
       font = wx.wxFont(options.size-2, wx.wxFONTFAMILY_MODERN, wx.wxFONTSTYLE_NORMAL,
         wx.wxFONTWEIGHT_NORMAL, false, options.font, wx.wxFONTENCODING_DEFAULT)
       local w, h, descent, leading = mdc:GetTextExtent("Text", font)
       fontadj = h-descent-leading-2
-      print("Set font ", SILE.font._key(options), mdc:GetTextExtent("Text", font))
+      log("Set font ", SILE.font._key(options), mdc:GetTextExtent("Text", font))
     end
   end,
   drawImage = function (src, x,y,w,h)
-    print("Draw image", src, x, y, w, h)
+    log("Draw image", src, x, y, w, h)
 
     local image = wx.wxImage()
     if not image:LoadFile(src) then return end
@@ -120,11 +147,11 @@ SILE.outputters.debug = {
     return image:GetWidth(), image:GetHeight()
   end,
   moveTo = function (x,y)
-    if x ~= cx then print("Mx ",string.format("%.5f",x)); cx = x end
-    if y ~= cy then print("My ",string.format("%.5f",y)); cy = y end
+    if x ~= cx then log("Mx ",string.format("%.5f",x)); cx = x end
+    if y ~= cy then log("My ",string.format("%.5f",y)); cy = y end
   end,
   rule = function (x,y,w,d)
-    print("Draw line", x, y, w, d)
+    log("Draw line", x, y, w, d)
     mdc:SelectObject(bitmap)
     pen:SetWidth(l2d(d))
     mdc:SetPen(pen)
@@ -138,4 +165,4 @@ SILE.outputters.debug = {
   end
 }
 
-SILE.outputter = SILE.outputters.debug
+SILE.outputter = SILE.outputters.wxlua
