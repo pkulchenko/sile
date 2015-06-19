@@ -123,17 +123,17 @@ SILE.outputters.wxlua = {
   setFont = function (options)
     local weightnormal = 200
     if f ~= SILE.font._key(options) then
-      log("Set font ", SILE.font._key(options))
       f = SILE.font._key(options)
-      font = wx.wxFont(options.size-2, wx.wxFONTFAMILY_MODERN,
+      local face = SILE.font.cache(options, SILE.shaper.getFace)
+      font = wx.wxFont(options.size-2, wx.wxFONTFAMILY_DEFAULT,
         options.style == "italic" and wx.wxFONTSTYLE_ITALIC or
         (options.style == "slant" and wx.wxFONTSTYLE_SLANT or wx.wxFONTSTYLE_NORMAL),
         options.weight == weightnormal and wx.wxFONTWEIGHT_NORMAL or
         (options.weight > weightnormal and wx.wxFONTWEIGHT_BOLD or wx.wxFONTWEIGHT_LIGHT),
-        false, options.font, wx.wxFONTENCODING_DEFAULT)
+        false, face.family, wx.wxFONTENCODING_DEFAULT)
       local w, h, descent, leading = mdc:GetTextExtent("Text", font)
       fontadj = h-descent-leading-2
-      log("Set font ", SILE.font._key(options), mdc:GetTextExtent("Text", font))
+      log("Set font ", mdc:GetTextExtent("Text", font), SILE.font._key(options), (options.font ~= face.family and " => "..face.family or ""))
     end
   end,
   drawImage = function (src, x,y,w,h)
