@@ -1,5 +1,12 @@
--- add zooming (using +/-)
---  how to zoom without redrawing everything? need to keep a log of calls for a page
+-- SILE output for wxlua
+-- Copyright 2015 Paul Kulchenko
+
+-- Supports PgUp/PgDn navigation
+-- Known issues:
+--   font substitution is incomplete as it's only done based on font name
+--   font size is adjusted by 2 to produce the size that closely matches the PDF output
+--   text positions are adjusted as wxwidgets draws using top-left coordinates instead of baseline
+-- TODO: add zooming (using +/-)
 
 if (not SILE.outputters) then SILE.outputters = {} end
 local f
