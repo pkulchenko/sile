@@ -9,10 +9,10 @@
 -- TODO: add zooming (using +/-)
 
 if (not SILE.outputters) then SILE.outputters = {} end
-local f
-local cx
-local cy
+
+local f, cx, cy
 local frame, font, fontadj, bitmap, title
+local fontlist = {}
 local pages = {}
 local page = 1
 
@@ -56,6 +56,11 @@ SILE.outputters.wxlua = {
     w = math.floor(0.5+l2d(SILE.documentState.paperSize[1]))
     h = math.floor(0.5+l2d(SILE.documentState.paperSize[2]))
     title = SILE.outputFilename.." (%d/%d)"
+
+    -- build a font list to check the substitutions against it, as fontconfig may offer
+    -- incorrect fullname because of https://bugs.freedesktop.org/show_bug.cgi?id=27765
+    local fontenum = wx.wxFontEnumerator().GetFacenames()
+    for i = 0, fontenum:GetCount()-1 do fontlist[fontenum:Item(i)] = true end
 
     log("Open file", SILE.outputFilename)
     log("Set paper size ", w, h)
@@ -132,15 +137,21 @@ SILE.outputters.wxlua = {
     if f ~= SILE.font._key(options) then
       f = SILE.font._key(options)
       local face = SILE.font.cache(options, SILE.shaper.getFace)
+      if face.fullname and not fontlist[face.fullname] then
+        log("Ignored substituted font '"..face.fullname.."' as it's missing")
+      end
+
+      local name = face.fullname and fontlist[face.fullname] and face.fullname or face.family
       font = wx.wxFont(options.size-2, wx.wxFONTFAMILY_DEFAULT,
         options.style == "italic" and wx.wxFONTSTYLE_ITALIC or
         (options.style == "slant" and wx.wxFONTSTYLE_SLANT or wx.wxFONTSTYLE_NORMAL),
         options.weight == weightnormal and wx.wxFONTWEIGHT_NORMAL or
         (options.weight > weightnormal and wx.wxFONTWEIGHT_BOLD or wx.wxFONTWEIGHT_LIGHT),
-        false, face.family, wx.wxFONTENCODING_DEFAULT)
+        false, name, wx.wxFONTENCODING_DEFAULT)
       local w, h, descent, leading = mdc:GetTextExtent("Text", font)
       fontadj = h-descent-leading-2
-      log("Set font ", mdc:GetTextExtent("Text", font), SILE.font._key(options), (options.font ~= face.family and " => "..face.family or ""))
+      log("Set font ", mdc:GetTextExtent("Text", font), SILE.font._key(options),
+        (options.font ~= face.family and " => "..name or ""))
     end
   end,
   drawImage = function (src, x,y,w,h)
