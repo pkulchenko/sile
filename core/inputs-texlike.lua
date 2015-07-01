@@ -14,7 +14,6 @@ SILE.inputs.TeXlike.parser = function (_ENV)
   local list = lpeg.Cf(lpeg.Ct("") * pair^0, rawset)
   local parameters = (P("[") * list * P("]")) ^-1 / function (a) return type(a)=="table" and a or {} end
   local anything = C( (1-lpeg.S("\\{}%\r\n")) ^1)
-  local lineEndLineStartSpace = (lpeg.S(" ")^0 * lpeg.S("\r\n")^1 * lpeg.S(" ")^0)^-1
   local comment = ((P("%") * (1-lpeg.S("\r\n"))^0 * lpeg.S("\r\n")^-1) /function () return "" end)
 
   START "document";
@@ -24,15 +23,15 @@ SILE.inputs.TeXlike.parser = function (_ENV)
     comment
     + V("text") + V"bracketed_stuff" + V"command")^0
   bracketed_stuff = P"{" * V"stuff" * (P"}" + E("} expected"))
-  command =((P("\\")-P("\\begin")) * Cg(myID, "tag") * Cg(parameters,"attr") * V"bracketed_stuff"^0 * lineEndLineStartSpace)-P("\\end{")
+  command =((P("\\")-P("\\begin")) * Cg(myID, "tag") * Cg(parameters,"attr") * V"bracketed_stuff"^0)-P("\\end{")
   environment =
     comment^0 *
-   P("\\begin") * Cg(parameters, "attr") * P("{") * Cg(myID, "tag") * P("}") * lineEndLineStartSpace
+    P("\\begin") * Cg(parameters, "attr") * P("{") * Cg(myID, "tag") * P("}")
       * V("stuff")
     * (P("\\end{") * (
       Cmt(myID * Cb("tag"), function(s,i,a,b) return a==b end) +
       E("Environment mismatch")
-    ) * (P("}") * _) + E("Environment begun but never ended"))
+    ) * P("}") + E("Environment begun but never ended"))
 end
 
 local linecache = {}
