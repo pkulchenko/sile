@@ -71,6 +71,7 @@ local function getline( s, p )
   return lno, col
 end
 
+local INCMD, INCMDBLOCK = true, {}
 local function massage_ast(t,doc)
   -- Sort out pos
   if type(t) == "string" then return t end
@@ -78,7 +79,24 @@ local function massage_ast(t,doc)
     t.line, t.col = getline(doc, t.pos)
   end
   if t.id == "document" then return massage_ast(t[1],doc) end
-  if t.id == "text" then return t[1] end
+  if t.id == "command" and t.tag == "cmd" then
+    if t[1] then
+      local incmd = SILE.documentState.incmd
+      SILE.documentState.incmd = INCMDBLOCK
+      local ast = massage_ast(t[1],doc)
+      SILE.documentState.incmd = incmd
+      return ast
+    else
+      SILE.documentState.incmd = INCMD
+    end
+  end
+  if t.id == "text" then
+    if t[1]:find("%S") and SILE.documentState.incmd == INCMD then
+      SILE.documentState.incmd = not INCMD
+    end
+    local incmd = SILE.documentState.incmd == INCMD or SILE.documentState.incmd == INCMDBLOCK
+    return incmd and '' or t[1]
+  end
   if t.id == "bracketed_stuff" then return massage_ast(t[1],doc) end
   for k,v in ipairs(t) do
     if v.id == "stuff" then

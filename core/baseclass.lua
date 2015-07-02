@@ -105,6 +105,7 @@ SILE.baseClass = std.object {
       SILE.documentState.documentClass.endPar(SILE.typesetter)
     end, "Ends the current paragraph.")
 
+    SILE.registerCommand("cmd", function() end, "Fake command for processing while ignoring whitespaces")
   end),
 
   pageTemplate = std.object { frames= {}, firstContentFrame= nil, direction = "LTR" },
